@@ -181,8 +181,6 @@ def index():
 def about():
     return render_template("about.html", active="about")
 
-
-
 @bp.route("/health")
 def health():
     return jsonify(status="ok")
@@ -196,8 +194,18 @@ def version():
 def upload():
     if request.method == "GET":
         settings = {"show_total": True, "by_dates": True, "trade_filter": "all"}
-        return render_template("upload.html", active="upload", result=None, charts=None, error=None,
-                               settings=settings, names=[], selected=[], per_strategy=[])
+        return render_template(
+            "upload.html",
+            active="upload",
+            result=None,
+            charts=None,
+            error=None,
+            settings=settings,
+            names=[],
+            selected=[],
+            per_strategy=[],
+            strategy_metrics=[],      # <-- added
+        )
 
     # toggles during upload
     show_total   = request.form.get("show_total") == "on"
@@ -207,9 +215,17 @@ def upload():
 
     files = request.files.getlist("file")
     if not files:
-        return render_template("upload.html", result=None, charts=None,
-                               error="No files provided", settings=settings,
-                               names=[], selected=[], per_strategy=[])
+        return render_template(
+            "upload.html",
+            result=None,
+            charts=None,
+            error="No files provided",
+            settings=settings,
+            names=[],
+            selected=[],
+            per_strategy=[],
+            strategy_metrics=[],      # <-- added
+        )
 
     strategies = {}
     for f in files:
@@ -217,17 +233,33 @@ def upload():
             continue
         ext = os.path.splitext(secure_filename(f.filename))[1].lower()
         if ext not in ALLOWED_EXT:
-            return render_template("upload.html", result=None, charts=None,
-                                   error=f"Unsupported file: {f.filename}",
-                                   settings=settings, names=[], selected=[], per_strategy=[])
+            return render_template(
+                "upload.html",
+                result=None,
+                charts=None,
+                error=f"Unsupported file: {f.filename}",
+                settings=settings,
+                names=[],
+                selected=[],
+                per_strategy=[],
+                strategy_metrics=[],  # <-- added
+            )
         buf = io.BytesIO(f.read())
         df = pd.read_excel(buf, engine="openpyxl")
         strategies[os.path.splitext(secure_filename(f.filename))[0]] = _normalize(df)
 
     if not strategies:
-        return render_template("upload.html", result=None, charts=None,
-                               error="No valid files", settings=settings,
-                               names=[], selected=[], per_strategy=[])
+        return render_template(
+            "upload.html",
+            result=None,
+            charts=None,
+            error="No valid files",
+            settings=settings,
+            names=[],
+            selected=[],
+            per_strategy=[],
+            strategy_metrics=[],      # <-- added
+        )
 
     # Save to session store
     sid = _sid()
@@ -245,9 +277,41 @@ def upload():
         "pnl": _pnl_figure(filtered, show_total=show_total, by_dates=by_dates),
         "correlation": _corr_heatmap(filtered),
     }
-    return render_template("upload.html", result=result, charts=charts, error=None,
-                           settings=settings, names=names, selected=selected,
-                           per_strategy=per_strategy)
+
+    # ---------- NEW: build strategy_metrics for LLM combo helper ----------
+    strategy_metrics = []
+    initial_capital = 10_000.0  # same as portfolio calc
+    for row in per_strategy:
+        name = row["name"]
+        df = filtered.get(name)
+        if df is not None and not df.empty:
+            dd = _max_drawdown(df["profit"])
+            returns = df["profit"].values / initial_capital
+            sharpe = _sharpe(returns, rf=0.0, years=1.0)  # simple approx per-strat
+        else:
+            dd = 0.0
+            sharpe = 0.0
+
+        strategy_metrics.append({
+            "name": name,
+            "net_profit": row["profit"],
+            "max_drawdown": dd,
+            "sharpe": sharpe,
+            "win_rate": row["win_rate"],  # still in percent
+        })
+    # ---------------------------------------------------------------------
+
+    return render_template(
+        "upload.html",
+        result=result,
+        charts=charts,
+        error=None,
+        settings=settings,
+        names=names,
+        selected=selected,
+        per_strategy=per_strategy,
+        strategy_metrics=strategy_metrics,   # <-- added
+    )
 
 # Re-render from cache without re-uploading; also supports selection & trade filter
 @bp.route("/render", methods=["POST"])
@@ -255,10 +319,17 @@ def render_from_cache():
     sid = _sid()
     cache = STORE.get(sid)
     if not cache or "strategies" not in cache:
-        return render_template("upload.html", result=None, charts=None,
-                               error="No uploaded datasets found for this session. Upload files first.",
-                               settings={"show_total": True, "by_dates": True, "trade_filter": "all"},
-                               names=[], selected=[], per_strategy=[])
+        return render_template(
+            "upload.html",
+            result=None,
+            charts=None,
+            error="No uploaded datasets found for this session. Upload files first.",
+            settings={"show_total": True, "by_dates": True, "trade_filter": "all"},
+            names=[],
+            selected=[],
+            per_strategy=[],
+            strategy_metrics=[],      # <-- added
+        )
 
     strategies = cache["strategies"]
 
@@ -274,10 +345,17 @@ def render_from_cache():
 
     filtered = _filtered_strategies(strategies, trade_filter, selected)
     if not filtered:
-        return render_template("upload.html", result=None, charts=None,
-                               error="Select at least one dataset.",
-                               settings={"show_total": show_total, "by_dates": by_dates, "trade_filter": trade_filter},
-                               names=names, selected=[], per_strategy=[])
+        return render_template(
+            "upload.html",
+            result=None,
+            charts=None,
+            error="Select at least one dataset.",
+            settings={"show_total": show_total, "by_dates": by_dates, "trade_filter": trade_filter},
+            names=names,
+            selected=[],
+            per_strategy=[],
+            strategy_metrics=[],      # <-- added
+        )
 
     result = _compute_summary(filtered)
     per_strategy = _per_strategy_metrics(filtered)
@@ -286,6 +364,38 @@ def render_from_cache():
         "correlation": _corr_heatmap(filtered),
     }
     settings = {"show_total": show_total, "by_dates": by_dates, "trade_filter": trade_filter}
-    return render_template("upload.html", result=result, charts=charts, error=None,
-                           settings=settings, names=names, selected=selected,
-                           per_strategy=per_strategy)
+
+    # ---------- NEW: build strategy_metrics here too ----------
+    strategy_metrics = []
+    initial_capital = 10_000.0
+    for row in per_strategy:
+        name = row["name"]
+        df = filtered.get(name)
+        if df is not None and not df.empty:
+            dd = _max_drawdown(df["profit"])
+            returns = df["profit"].values / initial_capital
+            sharpe = _sharpe(returns, rf=0.0, years=1.0)
+        else:
+            dd = 0.0
+            sharpe = 0.0
+
+        strategy_metrics.append({
+            "name": name,
+            "net_profit": row["profit"],
+            "max_drawdown": dd,
+            "sharpe": sharpe,
+            "win_rate": row["win_rate"],
+        })
+    # ---------------------------------------------------------
+
+    return render_template(
+        "upload.html",
+        result=result,
+        charts=charts,
+        error=None,
+        settings=settings,
+        names=names,
+        selected=selected,
+        per_strategy=per_strategy,
+        strategy_metrics=strategy_metrics,   # <-- added
+    )

@@ -2,6 +2,10 @@ from app import create_app
 import os
 from flask import request, jsonify
 from llm import run_gemini
+import json
+import re
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+import numpy as np
 
 # Create the Flask app from the factory
 app = create_app()
@@ -201,6 +205,118 @@ Give:
 """
     text = run_gemini(prompt)
     return jsonify({"ok": True, "text": text})
+
+
+
+@app.route("/api/llm/strategy_combo", methods=["POST"])
+def llm_strategy_combo():
+    """
+    Ask the LLM to suggest a combination of strategies with low drawdown.
+
+    Expects JSON like:
+    {
+      "strategies": [
+        {
+          "name": "Strat A",
+          "net_profit": 12000,
+          "max_drawdown": -2500,
+          "sharpe": 1.4,
+          "win_rate": 62.0
+        },
+        ...
+      ],
+      "max_strategies": 3
+    }
+    """
+    data = request.get_json() or {}
+    strategies = data.get("strategies", [])
+    max_strats = data.get("max_strategies", 3)
+
+    if not strategies:
+        return jsonify({"ok": False, "error": "No strategies provided"}), 400
+
+    prompt = f"""
+You are helping select a portfolio of trading strategies.
+
+Each strategy has metrics including net profit, max drawdown, Sharpe, and win rate.
+
+Your task:
+- Choose up to {max_strats} strategies that form a good portfolio
+- Primary objective: minimize overall drawdown
+- Secondary objectives: keep reasonable total net profit and decent Sharpe
+- Avoid picking multiple strategies that look very weak or redundant
+
+Here is the list of strategies and their metrics (JSON):
+
+{strategies}
+
+Respond with PURE JSON, NO MARKDOWN, NO BACKTICKS, NO EXPLANATION TEXT.
+The JSON must have exactly this shape:
+
+{{
+  "selected_strategies": ["name1", "name2"],
+  "rationale": "1–2 short paragraphs explaining why these were chosen."
+}}
+"""
+
+    text = run_gemini(prompt)
+
+    # --- Clean up common markdown / fencing so we can parse JSON safely ---
+    cleaned = text.strip()
+
+    # Strip ```json ... ``` or ``` ... ``` fences if present
+    if cleaned.startswith("```"):
+        # Remove leading ```json or ```
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+        # Truncate at closing ```
+        if "```" in cleaned:
+            cleaned = cleaned.split("```", 1)[0]
+        cleaned = cleaned.strip()
+
+    try:
+        parsed = json.loads(cleaned)
+        return jsonify({"ok": True, "selection": parsed})
+    except Exception:
+        # Fallback: send raw text so UI can at least display something
+        return jsonify({"ok": True, "raw_text": text})
+
+
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+import numpy as np
+
+@app.route("/api/ml/evaluate", methods=["POST"])
+def api_ml_evaluate():
+    """
+    Computes core evaluation metrics and confusion matrix for the trading classifier.
+    Expects:
+    {
+        "y_true": [...],
+        "y_pred": [...]
+    }
+    """
+    data = request.get_json() or {}
+    y_true = data.get("y_true", [])
+    y_pred = data.get("y_pred", [])
+
+    if not y_true or not y_pred or len(y_true) != len(y_pred):
+        return jsonify({"ok": False, "error": "Invalid y_true/y_pred"}), 400
+
+    acc = accuracy_score(y_true, y_pred)
+    prec = precision_score(y_true, y_pred, zero_division=0)
+    rec = recall_score(y_true, y_pred, zero_division=0)
+    f1 = f1_score(y_true, y_pred, zero_division=0)
+    cm = confusion_matrix(y_true, y_pred)
+
+    return jsonify({
+        "ok": True,
+        "metrics": {
+            "accuracy": acc,
+            "precision": prec,
+            "recall": rec,
+            "f1": f1,
+        },
+        "confusion_matrix": cm.tolist()
+    })
 
 
 

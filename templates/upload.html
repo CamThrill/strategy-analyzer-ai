@@ -204,37 +204,80 @@
     </section>
 
     <!-- ML Pipeline Assistant (LLM) -->
-    <section id="ml-pipeline-assistant" class="card">
-      <h2>ML Pipeline Assistant</h2>
-      <p>
+    <section id="ml-pipeline-assistant" class="card" style="padding:24px;">
+      <h2 style="margin-bottom:12px;">ML Pipeline Assistant</h2>
+
+      <p style="margin-bottom:20px;">
         Use this assistant to generate report-ready text for your
         methodology and evaluation sections.
       </p>
 
-      <div class="llm-buttons">
-        <button type="button" onclick="generateDataPrepText()">
+      <!-- BUTTONS ROW 1 -->
+      <div class="llm-buttons" style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px;">
+        <button type="button" class="btn" onclick="generateDataPrepText()">
           Generate Data Preparation Text
         </button>
-        <button type="button" onclick="generateModelTrainingText()">
+
+        <button type="button" class="btn" onclick="generateModelTrainingText()">
           Generate Model Training & Testing Text
         </button>
-        <button type="button" onclick="generateEvalMetricsText()">
+
+        <button type="button" class="btn" onclick="generateEvalMetricsText()">
           Generate Evaluation Metrics Text
         </button>
-        <button type="button" onclick="generateFeatureSelectionText()">
+      </div>
+
+      <!-- BUTTONS ROW 2 with spacing -->
+      <div style="margin-bottom:20px;">
+        <button type="button" class="btn" onclick="generateFeatureSelectionText()">
           Generate Feature Selection / Tuning Text
         </button>
       </div>
 
-      <label for="llm-extra-context">Extra context (optional):</label>
+      <label for="llm-extra-context" style="font-weight:600;">Extra context (optional):</label>
       <textarea id="llm-extra-context" rows="3"
+                style="width:100%; margin-top:6px; margin-bottom:20px; padding:10px;"
                 placeholder="Add any notes about your dataset, strategy, or model here..."></textarea>
 
-      <h3>LLM Output</h3>
-      <textarea id="llm-output" rows="10" readonly
+      <h3 style="margin-bottom:10px;">LLM Output</h3>
+
+      <!-- WIDER OUTPUT BOX -->
+      <textarea id="llm-output" rows="12" readonly
+                style="width:100%; padding:12px; font-size:15px; line-height:1.5; height:280px;"
                 placeholder="Generated text will appear here. You can copy/paste it into your report."></textarea>
     </section>
 
+    <!-- AI Strategy Combo Selector -->
+    <section class="card">
+      <div class="card-header">AI Strategy Combo Selector</div>
+      <div class="card-sub">
+        Let the LLM suggest a combination of strategies that balances net profit and low drawdown.
+      </div>
+      <div class="card-body">
+        <div style="margin-bottom:8px;">
+          <label for="max-strategies" class="help" style="margin-right:6px;">
+            Max number of strategies to include:
+          </label>
+          <input id="max-strategies" type="number" min="1" value="3"
+                 style="width:60px; padding:4px;">
+        </div>
+
+        <button type="button" class="btn" onclick="generateStrategyCombo()">
+          Suggest Strategy Combination
+        </button>
+
+        <div style="margin-top:12px;">
+          <h4>Selected Strategies (AI)</h4>
+          <pre id="strategy-combo-names" style="white-space:pre-wrap;"></pre>
+        </div>
+
+        <div style="margin-top:8px;">
+          <h4>AI Rationale</h4>
+          <textarea id="strategy-combo-rationale" rows="6" readonly
+                    style="width:100%;"></textarea>
+        </div>
+      </div>
+    </section>
 
     <!-- Row 2, left: Correlation -->
     <section class="card">
@@ -295,11 +338,45 @@
       </div>
     </section>
 
+    <!-- ======================= ML RESULTS CARD ======================= -->
+    <section class="card" style="margin-top:24px;">
+      <div class="card-header">ML Model Evaluation Results</div>
+      <div class="card-sub">
+        Accuracy, Precision, Recall, F1 Score, and Confusion Matrix for the trade classifier.
+      </div>
+
+      <div class="card-body">
+
+        <h3>Metrics</h3>
+        <table class="table" style="margin-bottom:20px; max-width:420px;">
+          <tbody>
+            <tr><th>Accuracy</th><td id="ml-acc">–</td></tr>
+            <tr><th>Precision</th><td id="ml-prec">–</td></tr>
+            <tr><th>Recall</th><td id="ml-rec">–</td></tr>
+            <tr><th>F1 Score</th><td id="ml-f1">–</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Confusion Matrix</h3>
+        <div id="ml-confusion" style="width:420px; height:420px;">
+          <p class="help">Confusion matrix will appear here.</p>
+        </div>
+
+        <button class="btn" onclick="loadMlResults()" style="margin-top:20px;">
+          Load ML Evaluation Metrics
+        </button>
+
+      </div>
+    </section>
+
+
   </div>
   {% endif %}
 </div>
 
 <script>
+const STRATEGY_METRICS = {{ strategy_metrics | tojson | safe }};
+
 async function callLLM(endpoint, payload, outputId) {
   const outputEl = document.getElementById(outputId);
   if (outputEl) {
@@ -325,7 +402,7 @@ async function callLLM(endpoint, payload, outputId) {
     }
 
     if (outputEl) {
-      outputEl.value = data.text || "(No text returned from LLM)";
+      outputEl.value = data.text || data.raw_text || "(No text returned from LLM)";
     }
   } catch (err) {
     if (outputEl) {
@@ -405,6 +482,136 @@ async function generateFeatureSelectionText() {
   };
 
   await callLLM("/api/llm/feature_selection", payload, "llm-output");
+}
+
+async function generateStrategyCombo() {
+  const maxStratsInput = document.getElementById("max-strategies");
+  let maxStrats = 3;
+
+  if (maxStratsInput && maxStratsInput.value) {
+    maxStrats = parseInt(maxStratsInput.value, 10);
+    if (isNaN(maxStrats) || maxStrats < 1) {
+      maxStrats = 3;
+    }
+  }
+
+  const namesEl = document.getElementById("strategy-combo-names");
+  const rationaleEl = document.getElementById("strategy-combo-rationale");
+
+  // Basic guard: if no strategies, show message
+  if (!Array.isArray(STRATEGY_METRICS) || STRATEGY_METRICS.length === 0) {
+    if (namesEl) namesEl.textContent = "No strategy metrics available.";
+    if (rationaleEl) rationaleEl.value = "";
+    return;
+  }
+
+  if (namesEl) namesEl.textContent = "Asking LLM for best combo...";
+  if (rationaleEl) rationaleEl.value = "";
+
+  try {
+    const response = await fetch("/api/llm/strategy_combo", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        strategies: STRATEGY_METRICS,
+        max_strategies: maxStrats
+      })
+    });
+
+    const data = await response.json();
+
+    if (!data.ok) {
+      if (namesEl) namesEl.textContent = "Error: " + (data.error || "Unknown error");
+      return;
+    }
+
+    // Handle parsed JSON selection or raw text fallback
+    if (data.selection && Array.isArray(data.selection.selected_strategies)) {
+      const selected = data.selection.selected_strategies;
+      const rationale = data.selection.rationale || "";
+
+      // Nice bullet list for selected strategies
+      if (namesEl) {
+        if (selected.length) {
+          namesEl.textContent = selected.map(name => "• " + name).join("\n");
+        } else {
+          namesEl.textContent = "(No strategies selected)";
+        }
+      }
+
+      // Plain paragraph rationale
+      if (rationaleEl) {
+        rationaleEl.value = rationale;
+      }
+    } else if (data.raw_text) {
+      // Fallback: try to strip ```json fences for display
+      let raw = data.raw_text.trim();
+      if (raw.startsWith("```")) {
+        raw = raw.replace(/^```(?:json)?\s*/i, "");
+        if (raw.includes("```")) {
+          raw = raw.split("```", 1)[0];
+        }
+        raw = raw.trim();
+      }
+      if (namesEl) {
+        namesEl.textContent = "(LLM did not return structured JSON; see rationale)";
+      }
+      if (rationaleEl) {
+        rationaleEl.value = raw;
+      }
+    } else {
+      if (namesEl) namesEl.textContent = "Unexpected response from LLM.";
+    }
+  } catch (err) {
+    if (namesEl) namesEl.textContent = "Request failed: " + err;
+  }
+}
+async function loadMlResults() {
+  // Replace this with real test results
+  const payload = {
+    y_true: [1,0,1,1,0,1,0,0,1,1], 
+    y_pred: [1,0,1,0,0,1,0,0,1,1]
+  };
+
+  const res = await fetch("/api/ml/evaluate", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json();
+
+  if (!data.ok) {
+    alert("ML evaluation failed: " + data.error);
+    return;
+  }
+
+  // Insert metrics
+  document.getElementById("ml-acc").textContent = data.metrics.accuracy.toFixed(3);
+  document.getElementById("ml-prec").textContent = data.metrics.precision.toFixed(3);
+  document.getElementById("ml-rec").textContent = data.metrics.recall.toFixed(3);
+  document.getElementById("ml-f1").textContent = data.metrics.f1.toFixed(3);
+
+  // Plot confusion matrix (Plotly)
+  const cm = data.confusion_matrix;
+  const trace = {
+    z: cm,
+    x: ["Pred 0","Pred 1"],
+    y: ["True 0","True 1"],
+    type: "heatmap",
+    colorscale: "Blues",
+    showscale: true
+  };
+
+  const layout = {
+    title: "Confusion Matrix",
+    xaxis: {side: "top"},
+    yaxis: {autorange: "reversed"}
+  };
+
+  Plotly.newPlot("ml-confusion", [trace], layout);
 }
 </script>
 
