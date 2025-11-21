@@ -203,6 +203,39 @@
       </div>
     </section>
 
+    <!-- ML Pipeline Assistant (LLM) -->
+    <section id="ml-pipeline-assistant" class="card">
+      <h2>ML Pipeline Assistant</h2>
+      <p>
+        Use this assistant to generate report-ready text for your
+        methodology and evaluation sections.
+      </p>
+
+      <div class="llm-buttons">
+        <button type="button" onclick="generateDataPrepText()">
+          Generate Data Preparation Text
+        </button>
+        <button type="button" onclick="generateModelTrainingText()">
+          Generate Model Training & Testing Text
+        </button>
+        <button type="button" onclick="generateEvalMetricsText()">
+          Generate Evaluation Metrics Text
+        </button>
+        <button type="button" onclick="generateFeatureSelectionText()">
+          Generate Feature Selection / Tuning Text
+        </button>
+      </div>
+
+      <label for="llm-extra-context">Extra context (optional):</label>
+      <textarea id="llm-extra-context" rows="3"
+                placeholder="Add any notes about your dataset, strategy, or model here..."></textarea>
+
+      <h3>LLM Output</h3>
+      <textarea id="llm-output" rows="10" readonly
+                placeholder="Generated text will appear here. You can copy/paste it into your report."></textarea>
+    </section>
+
+
     <!-- Row 2, left: Correlation -->
     <section class="card">
       <div class="card-header">Correlation Matrix</div>
@@ -265,4 +298,114 @@
   </div>
   {% endif %}
 </div>
+
+<script>
+async function callLLM(endpoint, payload, outputId) {
+  const outputEl = document.getElementById(outputId);
+  if (outputEl) {
+    outputEl.value = "Generating with LLM...";
+  }
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+
+    if (!data.ok) {
+      if (outputEl) {
+        outputEl.value = "Error from LLM: " + (data.error || "Unknown error");
+      }
+      return;
+    }
+
+    if (outputEl) {
+      outputEl.value = data.text || "(No text returned from LLM)";
+    }
+  } catch (err) {
+    if (outputEl) {
+      outputEl.value = "Request failed: " + err;
+    }
+  }
+}
+
+function getExtraContext() {
+  const el = document.getElementById("llm-extra-context");
+  return el ? el.value : "";
+}
+
+async function generateDataPrepText() {
+  const payload = {
+    columns: ["profit", "entry_time", "exit_time", "market_position"],
+    steps: [
+      "normalized profit values",
+      "encoded market_position as long/short",
+      "derived trade_duration from entry/exit timestamps"
+    ],
+    extra_context: getExtraContext()
+  };
+
+  await callLLM("/api/llm/data_preparation", payload, "llm-output");
+}
+
+async function generateModelTrainingText() {
+  const payload = {
+    target: "profitable_trade (binary: win vs non-win)",
+    features: [
+      "normalized profit",
+      "trade_duration",
+      "market_position_long",
+      "market_position_short"
+    ],
+    model_type: "Logistic Regression",
+    train_test_split: "80/20 train-test split with fixed random_state",
+    extra_context: getExtraContext()
+  };
+
+  await callLLM("/api/llm/model_training", payload, "llm-output");
+}
+
+async function generateEvalMetricsText() {
+  const payload = {
+    metrics: {
+      accuracy: 0.87,
+      precision: 0.82,
+      recall: 0.79,
+      f1: 0.80
+    },
+    confusion_matrix: [
+      [50, 10],
+      [8, 32]
+    ],
+    labels: ["non_profitable_or_break_even", "profitable"],
+    extra_context: getExtraContext()
+  };
+
+  await callLLM("/api/llm/eval_metrics", payload, "llm-output");
+}
+
+async function generateFeatureSelectionText() {
+  const payload = {
+    all_features: [
+      "profit_norm",
+      "trade_duration",
+      "max_adverse_excursion",
+      "max_favorable_excursion",
+      "session_time",
+      "volatility"
+    ],
+    target: "profitable_trade",
+    model_type: "Logistic Regression",
+    extra_context: getExtraContext()
+  };
+
+  await callLLM("/api/llm/feature_selection", payload, "llm-output");
+}
+</script>
+
 {% endblock %}
