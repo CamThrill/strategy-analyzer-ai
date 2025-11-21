@@ -1,0 +1,173 @@
+
+:root{
+  --bg1:#2a2b5a;         /* deep indigo */
+  --bg2:#1e2147;         /* darker indigo */
+  --card:#30346b;        /* card surface */
+  --card-2:#2b2f62;
+  --text:#eef1ff;
+  --muted:#aeb3d9;
+  --accent:#8f9bff;      /* indigo/blue accent */
+  --accent-2:#c6c9ff;
+  --border:rgba(255,255,255,.08);
+  --shadow: 0 20px 40px rgba(8,10,50,.35);
+  --glow: 0 0 12px rgba(143,155,255,.45), 0 0 32px rgba(143,155,255,.25);
+  --radius: 16px;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  color:var(--text);
+  background: radial-gradient(1200px 1200px at -10% -10%, #3a3f8d 0%, var(--bg1) 40%, var(--bg2) 100%) fixed;
+}
+
+.container{
+  max-width: 1080px;
+  margin: 32px auto 64px auto;
+  padding: 0 20px;
+}
+
+/* Page title “glow pill” */
+.page-title{
+  font-size: clamp(26px, 3.8vw, 40px);
+  font-weight: 800;
+  letter-spacing:.4px;
+  display:inline-flex;
+  align-items:center;
+  gap:12px;
+  padding:10px 18px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+  border:1px solid var(--border);
+  box-shadow: var(--glow);
+}
+
+/* Cards */
+.card{
+  background: linear-gradient(180deg, var(--card) 0%, var(--card-2) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow:hidden;
+}
+.card-header{
+  padding:18px 20px 6px;
+  font-weight:700;
+  font-size:18px;
+}
+.card-sub{
+  color:var(--muted);
+  font-weight:500;
+  font-size:14px;
+  padding: 0 20px 14px;
+}
+.card-body{
+  padding: 18px 20px 22px;
+}
+
+/* Section badge */
+.badge{
+  width:28px;height:28px;border-radius:50%;
+  display:inline-grid;place-items:center;
+  background: linear-gradient(180deg, #a4abff, #7f8aff);
+  color:#15183a;font-weight:800;font-size:14px;
+  box-shadow: 0 4px 14px rgba(143,155,255,.45);
+  margin-right:10px;
+}
+
+
+.grid{
+  display:grid;
+  grid-template-columns: 1fr;   
+  row-gap:32px;                 
+}
+
+
+.grid-2{
+  display:grid;
+  grid-template-columns: 1fr;   
+  gap:24px;                     
+}
+
+@media (min-width: 900px){
+  .grid-2{
+    grid-template-columns: 1.4fr 1fr;  
+    align-items:stretch;
+  }
+}
+
+
+.btn{
+  display:inline-flex;align-items:center;gap:10px;
+  padding:10px 14px;border-radius:12px;border:1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+  color:var(--text); text-decoration:none; font-weight:600;
+}
+.btn:hover{ filter:brightness(1.08) }
+
+/* Toggle group (pills) */
+.toggle-group{display:flex; flex-wrap:wrap; gap:10px}
+.toggle{
+  cursor:pointer;
+  padding:8px 12px; border-radius:999px; font-weight:600;
+  border:1px solid var(--border);
+  background: rgba(255,255,255,.05); color:var(--muted);
+}
+.toggle.active{ color:#11163a; background: linear-gradient(180deg, var(--accent), var(--accent-2)); }
+
+/* Check list (datasets) */
+.list{
+  display:flex; flex-direction:column; gap:10px; max-height:220px; overflow:auto;
+  padding-right:6px;
+}
+.list-item{
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px; border-radius:12px; border:1px solid var(--border);
+  background: rgba(255,255,255,.03);
+}
+
+/* Tables */
+.table{ width:100%; border-collapse:separate; border-spacing:0; }
+.table th, .table td{ padding:12px 14px; text-align:left; font-size:14px }
+.table thead th{
+  background: rgba(255,255,255,.06); color:var(--text);
+  position:sticky; top:0; z-index:1;
+}
+.table tbody tr:nth-child(odd){ background: rgba(255,255,255,.03) }
+.table tbody tr:hover{ background: rgba(143,155,255,.12) }
+
+/* Chart box */
+.plot-box{
+  border-radius:14px;
+  overflow:hidden;
+  border:1px solid var(--border);
+  background: rgba(0,0,0,.14);
+  padding:8px;              
+}
+
+.help{ color:var(--muted); font-size:13px }
+.hr{ height:1px; background:var(--border); margin:12px 0 6px }
+
+
+/* Layout for chart + correlation + metrics on upload page */
+.grid-charts{
+  display:grid;
+  gap:18px;
+}
+
+/* On larger screens: two columns, with first card spanning both */
+@media (min-width: 1100px){
+  .grid-charts{
+    grid-template-columns: minmax(0,1.35fr) minmax(0,1fr);
+  }
+  .grid-charts > .chart-wide{
+    grid-column: 1 / -1;   /* full width row for the main chart */
+  }
+}
+
+/* Make inputs inside toggle pills line up nicely */
+.toggle input{
+  margin-right:8px;
+}

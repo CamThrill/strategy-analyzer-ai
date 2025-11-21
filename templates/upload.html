@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+
+  <!-- Page title -->
+  <div class="page-title" style="margin-bottom:24px;">
+    📊 Strategy Analyzer – Upload & Analyze
+  </div>
+
+  <!-- Upload + Controls -->
+  <div class="grid" style="gap:20px; margin-bottom:24px;">
+
+    <!-- Upload card -->
+    <section class="card">
+      <div class="card-header">Upload Backtests</div>
+      <div class="card-sub">
+        Upload one or many NinjaTrader <code>.xlsx</code> exports. We’ll cache them so you can change
+        views and filters without re-uploading.
+      </div>
+      <div class="card-body">
+        <form action="{{ url_for('main.upload') }}" method="post" enctype="multipart/form-data">
+          <p>
+            <input type="file" name="file" accept=".xlsx" multiple />
+          </p>
+
+          <!-- Chart settings used on first upload -->
+          <div class="hr"></div>
+          <p class="help" style="margin-bottom:8px;">Initial chart settings (you can change these later in Live Controls):</p>
+
+          <div class="toggle-group" style="margin-bottom:10px;">
+            <label class="toggle">
+              <input type="checkbox" name="show_total"
+                     {% if settings and settings.show_total %}checked{% endif %}>
+              <span>Show Total PnL (one line)</span>
+            </label>
+
+            <label class="toggle">
+              <input type="checkbox" name="by_dates"
+                     {% if settings and settings.by_dates %}checked{% endif %}>
+              <span>X-Axis by Dates (unchecked = Trades)</span>
+            </label>
+          </div>
+
+          <div class="toggle-group" style="margin-bottom:10px;">
+            <span class="help" style="margin-right:6px;">Trade filter:</span>
+
+            <label class="toggle">
+              <input type="radio" name="trade_filter" value="all"
+                     {% if not settings or settings.trade_filter == 'all' %}checked{% endif %}>
+              <span>All</span>
+            </label>
+
+            <label class="toggle">
+              <input type="radio" name="trade_filter" value="long"
+                     {% if settings and settings.trade_filter == 'long' %}checked{% endif %}>
+              <span>Long</span>
+            </label>
+
+            <label class="toggle">
+              <input type="radio" name="trade_filter" value="short"
+                     {% if settings and settings.trade_filter == 'short' %}checked{% endif %}>
+              <span>Short</span>
+            </label>
+          </div>
+
+          <button type="submit" class="btn">Upload & Analyze</button>
+
+          {% if error %}
+            <p style="color:#ffb4c4;margin-top:10px;">{{ error }}</p>
+          {% endif %}
+        </form>
+      </div>
+    </section>
+
+    {% if names and names|length %}
+    <!-- Live controls card (no re-upload needed) -->
+    <section class="card">
+      <div class="card-header">Live Controls</div>
+      <div class="card-sub">
+        Change how the chart is drawn without re-uploading. These settings update the portfolio
+        summary, chart, correlation, and per-strategy metrics.
+      </div>
+      <div class="card-body">
+        <form action="{{ url_for('main.render_from_cache') }}" method="post" id="controls-form">
+
+          <!-- Toggles for chart behaviour -->
+          <div class="toggle-group" style="margin-bottom:10px;">
+            <label class="toggle">
+              <input type="checkbox" name="show_total"
+                     {% if settings and settings.show_total %}checked{% endif %}>
+              <span>Show Total PnL (one line)</span>
+            </label>
+
+            <label class="toggle">
+              <input type="checkbox" name="by_dates"
+                     {% if settings and settings.by_dates %}checked{% endif %}>
+              <span>X-Axis by Dates</span>
+            </label>
+          </div>
+
+          <div class="toggle-group" style="margin-bottom:14px;">
+            <span class="help" style="margin-right:6px;">Trade filter:</span>
+
+            <label class="toggle">
+              <input type="radio" name="trade_filter" value="all"
+                     {% if settings and settings.trade_filter == 'all' %}checked{% endif %}>
+              <span>All</span>
+            </label>
+
+            <label class="toggle">
+              <input type="radio" name="trade_filter" value="long"
+                     {% if settings and settings.trade_filter == 'long' %}checked{% endif %}>
+              <span>Long</span>
+            </label>
+
+            <label class="toggle">
+              <input type="radio" name="trade_filter" value="short"
+                     {% if settings and settings.trade_filter == 'short' %}checked{% endif %}>
+              <span>Short</span>
+            </label>
+          </div>
+
+          <!-- Dataset selection -->
+          <div class="hr"></div>
+          <p class="help" style="margin-bottom:6px;">Datasets to include in portfolio & metrics:</p>
+
+          <div style="margin-bottom:8px;">
+            <button type="button" class="btn" style="padding:6px 10px;font-size:13px;"
+                    onclick="checkAll(true)">Select all</button>
+            <button type="button" class="btn" style="padding:6px 10px;font-size:13px;"
+                    onclick="checkAll(false)">Select none</button>
+          </div>
+
+          <div class="list">
+            {% for n in names %}
+              <label class="list-item">
+                <input type="checkbox" name="include" value="{{ n }}"
+                       {% if n in selected %}checked{% endif %}>
+                <span>{{ n }}</span>
+              </label>
+            {% endfor %}
+          </div>
+
+          <div style="margin-top:14px;">
+            <button type="submit" class="btn">Apply View</button>
+          </div>
+        </form>
+
+        <script>
+          function checkAll(state){
+            document.querySelectorAll('#controls-form input[name="include"]')
+              .forEach(cb => cb.checked = state);
+          }
+        </script>
+      </div>
+    </section>
+    {% endif %}
+  </div>
+
+  {% if result %}
+  <!-- CHARTS & METRICS LAYOUT -->
+  <!-- Portfolio Summary (before charts) -->
+  <section class="card" style="margin-bottom:24px;">
+    <div class="card-header">Portfolio Summary</div>
+    <div class="card-sub">
+      Showing <b>Total PnL</b> (if enabled), X-Axis = <b>{{ 'Dates' if settings.by_dates else 'Trades' }}</b>,
+      Trade Filter = <b>{{ settings.trade_filter|capitalize }}</b>.
+    </div>
+
+    <div class="card-body">
+      <table class="table">
+        <tbody>
+          <tr><th>Profits</th><td>${{ '{:,.2f}'.format(result.portfolio_profits) }}</td></tr>
+          <tr><th>Backtest</th><td>{{ result.start }} → {{ result.end }}</td></tr>
+          <tr><th>CAGR</th><td>{{ '{:.2%}'.format(result.cagr) }}</td></tr>
+          <tr><th>Trades</th><td>{{ result.total_trades }}</td></tr>
+          <tr><th>Win Rate</th><td>{{ '{:.2f}%'.format(result.win_rate) }}</td></tr>
+          <tr><th>Sharpe</th><td>{{ '{:.2f}'.format(result.sharpe) }}</td></tr>
+          <tr><th>Sortino</th><td>{{ '{:.2f}'.format(result.sortino) }}</td></tr>
+          <tr><th>Max Drawdown</th><td>${{ '{:,.2f}'.format(result.max_drawdown) }}</td></tr>
+          <tr><th>Largest Loss</th><td>${{ '{:,.2f}'.format(result.largest_loss) }}</td></tr>
+          <tr><th>Required Capital</th><td>${{ '{:,.2f}'.format(result.required_capital) }}</td></tr>
+          <tr><th>Strategies</th>
+            <td>{{ result.strategies | join(', ') }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="grid-charts">
+
+    <!-- Row 1: Main PnL Chart full width -->
+    <section class="card chart-wide">
+      <div class="card-header">Main PnL Chart</div>
+      <div class="card-sub">
+        Cumulative equity curve based on selected datasets, filters, and “Total vs individual lines” settings.
+      </div>
+      <div class="card-body">
+        <div class="plot-box">
+          {{ charts.pnl | safe }}
+        </div>
+      </div>
+    </section>
+
+    <!-- Row 2, left: Correlation -->
+    <section class="card">
+      <div class="card-header">Correlation Matrix</div>
+      <div class="card-sub">Daily PnL correlations between the selected strategies.</div>
+      <div class="card-body">
+        <div class="plot-box">
+          {% if charts.correlation %}
+            {{ charts.correlation | safe }}
+          {% else %}
+            <p class="help">Select at least two datasets to see correlation.</p>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    <!-- Row 2, right: Per-strategy metrics -->
+    <section class="card">
+      <div class="card-header">Per-Strategy Metrics</div>
+      <div class="card-sub">
+        Metrics are computed after applying filters and dataset selection.
+      </div>
+      <div class="card-body" style="overflow:auto; max-height:520px;">
+        {% if per_strategy and per_strategy|length %}
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Strategy</th>
+                <th style="text-align:right">Net Profit</th>
+                <th style="text-align:right">Trades</th>
+                <th style="text-align:right">Win Rate</th>
+                <th style="text-align:right">Avg Trade</th>
+                <th style="text-align:right">Avg Win</th>
+                <th style="text-align:right">Avg Loss</th>
+                <th style="text-align:right">Largest Win</th>
+                <th style="text-align:right">Largest Loss</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in per_strategy %}
+              <tr>
+                <td>{{ r.name }}</td>
+                <td style="text-align:right">${{ '{:,.2f}'.format(r.profit) }}</td>
+                <td style="text-align:right">{{ r.trades }}</td>
+                <td style="text-align:right">{{ '{:.2f}%'.format(r.win_rate) }}</td>
+                <td style="text-align:right">${{ '{:,.2f}'.format(r.avg) }}</td>
+                <td style="text-align:right">${{ '{:,.2f}'.format(r.avg_win) }}</td>
+                <td style="text-align:right">${{ '{:,.2f}'.format(r.avg_loss) }}</td>
+                <td style="text-align:right">${{ '{:,.2f}'.format(r.max_win) }}</td>
+                <td style="text-align:right">${{ '{:,.2f}'.format(r.max_loss) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="help">No strategies to show.</p>
+        {% endif %}
+      </div>
+    </section>
+
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
