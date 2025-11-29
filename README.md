@@ -84,7 +84,7 @@ https://aistudio.google.com/app/apikey
 
 Then export it manually:
 
-export GOOGLE_API_KEY="your_gemini_api_key_here" (No "" just the key)
+export GOOGLE_API_KEY="your_gemini_api_key_here" (No "" just the key) \\
 export ENV=dev
 
 ### 4️⃣ Run the application
