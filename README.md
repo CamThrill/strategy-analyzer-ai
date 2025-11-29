@@ -67,7 +67,7 @@ Open the repository in **GitHub Codespaces**, then run:
 
 ### 1️⃣ Create & activate virtual environment
 
-python3 -m venv venv
+python3 -m venv venv \\
 source venv/bin/activate
 
 ### 2️⃣ Install Dependencies
