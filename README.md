@@ -90,3 +90,9 @@ export ENV=dev
 ### 4️⃣ Run the application
 
 python run.py
+
+
+
+### Strategies to Upload
+
+https://drive.google.com/drive/folders/1W1OpxuyAla9cfQxPbyc7LXFLvlI5Cvyq?usp=sharing
